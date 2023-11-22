@@ -10,17 +10,17 @@
 
 ; Sideways ROM header
         .segment "STARTUP"
-        jmp langent
-        jmp svcent
-        .byte $C2
-        .byte <copy-1
-        .byte $00
-title:  .asciiz "CRT0"
-copy:   .asciiz "(C)"
+        jmp langent                             ; Language entry
+        jmp svcent                              ; Service entry
+        .byte $C2                               ; Type (service, language, 6502)
+        .byte <copy-1                           ; Copyright string pointer
+        .byte $00                               ; Binary version number (shown in *ROMS)
+title:  .asciiz "CRT0"                          ; Title string (shown in *ROMS and on entering language)
+copy:   .asciiz "(C)"                           ; Copyright string (no version string)
 
 ; Language entry
 langent:
-        php
+        php                                     ; Save all register data for the use of the C code
         sei
         cld
         sta regsv+0
@@ -28,12 +28,12 @@ langent:
         sty regsv+2
         pla
         sta regsv+3
-        tsx
+        tsx                                     ; Save SP in case of abnormal exit
         stx spsave
-        lda #<regsv
+        lda #<regsv                             ; language(regsv);
         ldx #>regsv
         jsr _language
-        lda regsv+3
+        lda regsv+3                             ; Set up returned register state
         pha
         ldy regsv+2
         ldx regsv+1
@@ -42,23 +42,23 @@ langent:
         rts
 
 ; Service entry
-svcent: php
+svcent: php                                     ; Save all register data for the use of the C code
         sei
         cld
         sta regsv+0
         stx regsv+1
         sty regsv+2
-        cmp #1
+        cmp #1                                  ; This service call happens on BREAK...
         bne :+
-        jsr init
+        jsr init                                ; ...so we do our own initialisation at that point
 :       pla
         sta regsv+3
-        tsx
+        tsx                                     ; Save SP in case of abnormal exit
         stx spsave
-        lda #<regsv
+        lda #<regsv                             ; service(regsv);
         ldx #>regsv
         jsr _service
-        lda regsv+3
+        lda regsv+3                             ; Set up returned register state
         pha
         ldy regsv+2
         ldx regsv+1
@@ -66,6 +66,7 @@ svcent: php
         plp
         rts
 
+; This bit basically copied from cc65's own crt0
 init:   lda #<__STACKSTART__
         ldx #>__STACKSTART__
         sta sp
@@ -74,10 +75,11 @@ init:   lda #<__STACKSTART__
         jsr initlib
         rts
 
+; Seems a weird thing to do from the ROM, but anyway
 _exit:  ldx spsave
         txs
         jsr donelib
-        lda regsv+3
+        lda regsv+3                             ; Set up returned register state
         pha
         ldy regsv+2
         ldx regsv+1
@@ -86,5 +88,5 @@ _exit:  ldx spsave
         rts
 
         .segment "DATA"
-spsave: .res 1
-regsv:  .res 6
+spsave: .res 1                                  ; Save 6502 SP on entry
+regsv:  .res 6                                  ; Size of a struct regs
